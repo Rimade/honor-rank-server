@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgres"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  telegramId BigInt   @unique
+  username   String?
+  firstName  String?
+  lastName   String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Репутация пользователя
+  reputation Int @default(0)
+
+  // Связи с репутацией
+  givenReputations    Reputation[]         @relation("ReputationGiver")
+  receivedReputations Reputation[]         @relation("ReputationReceiver")
+  reputationCooldowns ReputationCooldown[] @relation("ReputationCooldownGiver")
+
+  @@map("users")
+}
+
+model Reputation {
+  id         Int      @id @default(autoincrement())
+  giverId    Int
+  receiverId Int
+  value      Int // +1 или -1
+  reason     String? // Причина изменения репутации
+  createdAt  DateTime @default(now())
+
+  // Связи
+  giver    User @relation("ReputationGiver", fields: [giverId], references: [id])
+  receiver User @relation("ReputationReceiver", fields: [receiverId], references: [id])
+
+  // Уникальность: один пользователь может дать репутацию другому только один раз
+  @@unique([giverId, receiverId])
+  @@map("reputations")
+}
+
+model Chat {
+  id         Int      @id @default(autoincrement())
+  telegramId BigInt   @unique
+  title      String?
+  type       String? // group, supergroup, channel
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Настройки чата
+  reputationEnabled   Boolean              @default(true)
+  cooldownMinutes     Int                  @default(60) // Кулдаун между изменениями репутации
+  reputationCooldowns ReputationCooldown[] @relation("ReputationCooldownChat")
+
+  @@map("chats")
+}
+
+model ReputationCooldown {
+  id       Int      @id @default(autoincrement())
+  giverId  Int
+  chatId   Int
+  lastUsed DateTime @default(now())
+
+  // Связи
+  giver User @relation("ReputationCooldownGiver", fields: [giverId], references: [id])
+  chat  Chat @relation("ReputationCooldownChat", fields: [chatId], references: [id])
+
+  @@unique([giverId, chatId])
+  @@map("reputation_cooldowns")
+}

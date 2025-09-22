@@ -13,31 +13,44 @@ async function bootstrap() {
     );
     const host = '0.0.0.0';
 
-    // Запускаем бота
-    const botService = app.get(BotService);
-    await botService.start();
-
-    // Обработка завершения процесса
-    process.once('SIGINT', async () => {
-      console.log('Получен SIGINT, завершаем работу...');
-      await botService.stop();
-      await app.close();
-      process.exit(0);
-    });
-
-    process.once('SIGTERM', async () => {
-      console.log('Получен SIGTERM, завершаем работу...');
-      await botService.stop();
-      await app.close();
-      process.exit(0);
-    });
-
+    // Сначала поднимаем HTTP-сервер, чтобы платформа увидела открытый порт
     await app.listen(port, host);
     console.log(`🚀 Приложение запущено на ${host}:${port}`);
+
+    // Затем запускаем бота (не блокируем старт сервера)
+    const botService = app.get(BotService);
+    void botService.start();
+
+    // Обработка завершения процесса
+    process.once('SIGINT', () => {
+      console.log('Получен SIGINT, завершаем работу...');
+      botService.stop();
+      app
+        .close()
+        .then(() => process.exit(0))
+        .catch((err) => {
+          console.error('Ошибка при закрытии приложения:', err);
+          process.exit(1);
+        });
+    });
+
+    process.once('SIGTERM', () => {
+      console.log('Получен SIGTERM, завершаем работу...');
+      botService.stop();
+      app
+        .close()
+        .then(() => process.exit(0))
+        .catch((err) => {
+          console.error('Ошибка при закрытии приложения:', err);
+          process.exit(1);
+        });
+    });
+
+    // Порт уже слушается
   } catch (error) {
     console.error('❌ Ошибка запуска приложения:', error);
     process.exit(1);
   }
 }
 
-bootstrap();
+void bootstrap();
